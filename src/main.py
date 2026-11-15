@@ -26,6 +26,7 @@ CARPETA_QRS = "qrs_estudiantes"
 if not os.path.exists(CARPETA_QRS):
     os.makedirs(CARPETA_QRS)
 
+
 def inicializar_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
