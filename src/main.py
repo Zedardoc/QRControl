@@ -6,6 +6,8 @@ import os
 import qrcode
 import cv2
 from PIL import Image, ImageTk
+import pandas as pd
+from tkcalendar import DateEntry
 
 # Intentar importar winsound para tonos personalizados en Windows
 try:
@@ -188,9 +190,51 @@ class ControlAccesoApp:
         self.tree.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        btn_actualizar = tk.Button(frame, text="🔄 Actualizar Historial", command=self.cargar_historial, 
-                                   bg="#607D8B", fg="white", font=("Arial", 9, "bold"))
-        btn_actualizar.pack(pady=5)
+        botones_frame = ttk.Frame(frame)
+        botones_frame.pack(pady=5)
+
+        btn_actualizar = tk.Button(
+            botones_frame,
+            text="🔄 Actualizar Historial",
+            command=self.cargar_historial,
+            bg="#607D8B",
+            fg="white",
+            font=("Arial", 9, "bold")
+        )
+        btn_actualizar.pack(side=tk.LEFT, padx=5)
+        # Fecha inicial
+        ttk.Label(botones_frame, text="Desde:").pack(side=tk.LEFT, padx=(10, 3))
+
+        self.fecha_inicio = DateEntry(
+            botones_frame,
+            width=11,
+            date_pattern="dd/mm/yyyy",
+            locale="es_CO"
+        )
+        self.fecha_inicio.pack(side=tk.LEFT, padx=3)
+
+        # Fecha final
+        ttk.Label(botones_frame, text="Hasta:").pack(side=tk.LEFT, padx=(10, 3))
+
+        self.fecha_fin = DateEntry(
+            botones_frame,
+            width=11,
+            date_pattern="dd/mm/yyyy",
+            locale="es_CO"
+        )
+        self.fecha_fin.pack(side=tk.LEFT, padx=3)
+
+
+        btn_generar_excel = tk.Button(
+            botones_frame,
+            text="📄 Exportar a Excel",
+            command=self.exportar_historial_excel,
+            bg="#009688",
+            fg="white",
+            font=("Arial", 9, "bold")
+        )
+        btn_generar_excel.pack(side=tk.LEFT, padx=5)
+
 
         self.cargar_historial()
 
@@ -204,13 +248,64 @@ class ControlAccesoApp:
             SELECT e.nombre, h.estudiante_id, h.accion, h.fecha_hora 
             FROM historial h 
             JOIN estudiantes e ON h.estudiante_id = e.id 
-            ORDER BY h.id_registro DESC LIMIT 50
+            ORDER BY h.fecha_hora
         ''')
         registros = cursor.fetchall()
         conn.close()
 
         for reg in registros:
             self.tree.insert("", tk.END, values=reg)
+            
+    def exportar_historial_excel(self):
+        try:
+            # Obtener fechas seleccionadas
+            fecha_inicio = self.fecha_inicio.get_date().strftime("%Y-%m-%d")
+            fecha_fin = self.fecha_fin.get_date().strftime("%Y-%m-%d")
+
+            if fecha_inicio > fecha_fin:
+                messagebox.showwarning(
+                    "Fechas inválidas",
+                    "La fecha inicial no puede ser posterior a la fecha final."
+                )
+                return
+
+            conn = sqlite3.connect(DB_NAME)
+
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT e.nombre, h.estudiante_id, h.accion, h.fecha_hora
+                FROM historial h
+                JOIN estudiantes e ON h.estudiante_id = e.id
+                WHERE DATE(h.fecha_hora) BETWEEN DATE(?) AND DATE(?)
+                ORDER BY h.fecha_hora DESC
+            ''', (fecha_inicio, fecha_fin))
+
+            registros = cursor.fetchall()
+            conn.close()
+
+            if not registros:
+                messagebox.showinfo(
+                    "Historial",
+                    "No existen movimientos en el rango de fechas seleccionado."
+                )
+                return
+
+            df = pd.DataFrame(
+                registros,
+                columns=["Nombre", "ID Estudiante", "Acción", "Fecha y Hora"]
+            )
+
+            df.to_excel(f"historial_{fecha_inicio}_a_{fecha_fin}.xlsx", index=False)
+
+            messagebox.showinfo(
+                "Exportación exitosa",
+                f"Se exportaron {len(registros)} movimientos.\n\n"
+                f"Desde: {fecha_inicio}\nHasta: {fecha_fin}\n\n"
+                "Archivo: historial.xlsx"
+            )
+
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo exportar: {e}")
 
     # --- 3. SECCIÓN INFERIOR IZQUIERDA: CÁMARA WEB EN VIVO ---
     def crear_seccion_camara(self):
