@@ -234,9 +234,89 @@ class ControlAccesoApp:
             font=("Arial", 9, "bold")
         )
         btn_generar_excel.pack(side=tk.LEFT, padx=5)
+                # Consulta de estado del estudiante
+        consulta_frame = ttk.Frame(frame)
+        consulta_frame.pack(pady=10)
+
+        ttk.Label(
+            consulta_frame,
+            text="Consultar matrícula:"
+        ).pack(side=tk.LEFT, padx=5)
+
+        self.id_consulta = ttk.Entry(
+            consulta_frame,
+            width=15
+        )
+        self.id_consulta.pack(side=tk.LEFT, padx=5)
+
+        btn_consultar = tk.Button(
+            consulta_frame,
+            text="🔍 Consultar estado",
+            command=self.consultar_estado,
+            bg="#3F51B5",
+            fg="white",
+            font=("Arial", 9, "bold")
+        )
+        btn_consultar.pack(side=tk.LEFT, padx=5)
+
+        self.label_estado = ttk.Label(
+            consulta_frame,
+            text="Estado: Sin consultar",
+            font=("Arial", 10, "bold")
+        )
+        self.label_estado.pack(side=tk.LEFT, padx=10)
 
 
         self.cargar_historial()
+    def consultar_estado(self):
+        estudiante_id = self.id_consulta.get().strip()
+
+        if not estudiante_id:
+            messagebox.showwarning(
+                "Consulta",
+                "Ingresa una matrícula para consultar."
+            )
+            return
+
+        try:
+            conn = sqlite3.connect(DB_NAME)
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT accion
+                FROM historial
+                WHERE estudiante_id = ?
+                ORDER BY fecha_hora DESC
+                LIMIT 1
+            """, (estudiante_id,))
+
+            resultado = cursor.fetchone()
+            conn.close()
+
+            if resultado is None:
+                self.label_estado.config(
+                    text="Estado: SIN REGISTROS",
+                    foreground="orange"
+                )
+                return
+
+            estado = resultado[0].strip().upper()
+            if estado == "ENTRADA":
+                color = "green"
+            else:
+                color = "red"
+            
+
+            self.label_estado.config(
+                text=f"Estado: {estado}",
+                foreground=color
+            )
+
+        except sqlite3.Error as e:
+            messagebox.showerror(
+                "Error de base de datos",
+                str(e)
+            )
 
     def cargar_historial(self):
         for item in self.tree.get_children():
